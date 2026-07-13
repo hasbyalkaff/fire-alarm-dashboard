@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default function ZonesPage() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Zones" description="Each zone shows a single rolled-up status." />
+      <PageHeader title="Zones" description="Each zone shows a single rolled-up status." showStale />
       <ZonesView panelOptions={panelOptions()} />
     </div>
   );

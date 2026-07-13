@@ -1,13 +1,15 @@
 "use client";
 
-import { Fragment, useRef, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DeviceStatus, Paginated } from "@/lib/types";
+import { useDensity, ROW_HEIGHT } from "@/hooks/use-density";
+import { useUrlFilters } from "@/hooks/use-url-filters";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "./states";
 import { Pagination } from "./pagination";
@@ -18,16 +20,21 @@ export interface Column<T> {
   cell: (row: T) => ReactNode;
   mono?: boolean;
   align?: "left" | "right";
+  /** Click-to-sort. The column `key` is sent to the server as `?sort=<key>`. */
+  sortable?: boolean;
 }
 
-const ROW_HEIGHT = 48;
+const HEADER_HEIGHT = 40;
 const VIRTUALIZE_OVER = 500; // PRD AC-L2
+
+type SortDir = "asc" | "desc";
 
 export function DataTable<T>({
   resource,
   columns,
   rowKey,
   rowHref,
+  rowLabel,
   rowStatus,
   gridTemplate,
   minWidth = 720,
@@ -39,6 +46,8 @@ export function DataTable<T>({
   columns: Column<T>[];
   rowKey: (row: T) => string | number;
   rowHref?: (row: T) => string;
+  /** Accessible name for the whole-row navigation link (screen readers). */
+  rowLabel?: (row: T) => string;
   rowStatus?: (row: T) => DeviceStatus;
   gridTemplate: string;
   minWidth?: number;
@@ -61,21 +70,6 @@ export function DataTable<T>({
     placeholderData: keepPreviousData,
   });
 
-  const header = (
-    <div
-      role="row"
-      className="grid items-center gap-3 border-b border-border bg-surface-muted px-4 text-xs font-semibold uppercase tracking-wide text-fg-muted"
-      style={{ gridTemplateColumns: rowHref ? `${gridTemplate} 16px` : gridTemplate, height: 40 }}
-    >
-      {columns.map((c) => (
-        <div key={c.key} role="columnheader" className={cn("truncate", c.align === "right" && "text-right")}>
-          {c.header}
-        </div>
-      ))}
-      {rowHref && <div role="columnheader" aria-label="Open" />}
-    </div>
-  );
-
   const hasRows = Boolean(data && data.data.length > 0);
 
   return (
@@ -83,7 +77,7 @@ export function DataTable<T>({
       {isPending ? (
         <div className="divide-y divide-border" aria-busy>
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center px-4" style={{ height: ROW_HEIGHT }}>
+            <div key={i} className="flex items-center px-4" style={{ height: ROW_HEIGHT.comfortable }}>
               <Skeleton className="h-4 w-full" />
             </div>
           ))}
@@ -94,21 +88,19 @@ export function DataTable<T>({
         <EmptyState title={emptyTitle} hint={emptyHint} />
       ) : (
         <>
-          {/* Tablet and up: the full table. Horizontal overflow is contained here so the
-              page itself never scrolls sideways (Design System §11). */}
-          <div role="table" aria-busy={isFetching} className="hidden overflow-x-auto md:block">
-            <div style={{ minWidth }}>
-              {header}
-              <TableBody
-                rows={data!.data}
-                columns={columns}
-                rowKey={rowKey}
-                rowHref={rowHref}
-                rowStatus={rowStatus}
-                gridTemplate={gridTemplate}
-              />
-            </div>
-          </div>
+          {/* Tablet and up: the full table. Horizontal/vertical overflow is contained
+              here so the page itself never scrolls sideways (Design System §11). */}
+          <DesktopTable
+            rows={data!.data}
+            columns={columns}
+            rowKey={rowKey}
+            rowHref={rowHref}
+            rowLabel={rowLabel}
+            rowStatus={rowStatus}
+            gridTemplate={gridTemplate}
+            minWidth={minWidth}
+            isFetching={isFetching}
+          />
           {/* Phone: one status-led card per row instead of a sideways-scrolling table. */}
           <ul className="divide-y divide-border md:hidden" aria-busy={isFetching}>
             {data!.data.map((row) => (
@@ -117,7 +109,206 @@ export function DataTable<T>({
           </ul>
         </>
       )}
-      {hasRows && <Pagination meta={data!.meta} />}
+      {hasRows && <Pagination meta={data!.meta} pageSizeOptions={[50, 100, 200]} />}
+    </div>
+  );
+}
+
+/** Reads the active sort from the URL and cycles asc → desc → unsorted on click. */
+function useSort() {
+  const search = useSearchParams();
+  const { set } = useUrlFilters();
+  const sortKey = search.get("sort") ?? undefined;
+  const dir: SortDir = search.get("dir") === "desc" ? "desc" : "asc";
+  const cycle = (key: string) => {
+    if (sortKey !== key) set({ sort: key, dir: "asc" });
+    else if (dir === "asc") set({ sort: key, dir: "desc" });
+    else set({ sort: undefined, dir: undefined });
+  };
+  return { sortKey, dir, cycle };
+}
+
+function HeaderRow<T>({
+  columns,
+  rowHref,
+  gridTemplate,
+  sticky,
+}: {
+  columns: Column<T>[];
+  rowHref?: (row: T) => string;
+  gridTemplate: string;
+  sticky?: boolean;
+}) {
+  const { sortKey, dir, cycle } = useSort();
+  return (
+    <div
+      role="row"
+      className={cn(
+        "grid items-center gap-3 border-b border-border bg-surface-muted px-4 text-xs font-semibold uppercase tracking-wide text-fg-muted",
+        sticky && "sticky top-0 z-10",
+      )}
+      style={{ gridTemplateColumns: rowHref ? `${gridTemplate} 16px` : gridTemplate, height: HEADER_HEIGHT }}
+    >
+      {columns.map((c) => {
+        const active = sortKey === c.key;
+        return (
+          <div
+            key={c.key}
+            role="columnheader"
+            aria-sort={c.sortable ? (active ? (dir === "asc" ? "ascending" : "descending") : "none") : undefined}
+            className={cn("min-w-0", c.align === "right" && "text-right")}
+          >
+            {c.sortable ? (
+              <button
+                type="button"
+                onClick={() => cycle(c.key)}
+                className={cn(
+                  "-mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 py-0.5 uppercase hover:text-fg",
+                  c.align === "right" && "flex-row-reverse",
+                  active && "text-fg",
+                )}
+              >
+                <span className="truncate">{c.header}</span>
+                {active ? (
+                  dir === "asc" ? (
+                    <ChevronUp size={13} aria-hidden />
+                  ) : (
+                    <ChevronDown size={13} aria-hidden />
+                  )
+                ) : (
+                  <ChevronsUpDown size={13} className="text-fg-subtle" aria-hidden />
+                )}
+              </button>
+            ) : (
+              <span className="truncate">{c.header}</span>
+            )}
+          </div>
+        );
+      })}
+      {rowHref && <div role="columnheader" aria-label="Open" />}
+    </div>
+  );
+}
+
+function DesktopTable<T>({
+  rows,
+  columns,
+  rowKey,
+  rowHref,
+  rowLabel,
+  rowStatus,
+  gridTemplate,
+  minWidth,
+  isFetching,
+}: {
+  rows: T[];
+  columns: Column<T>[];
+  rowKey: (row: T) => string | number;
+  rowHref?: (row: T) => string;
+  rowLabel?: (row: T) => string;
+  rowStatus?: (row: T) => DeviceStatus;
+  gridTemplate: string;
+  minWidth: number;
+  isFetching: boolean;
+}) {
+  const density = useDensity((s) => s.density);
+  const rowHeight = ROW_HEIGHT[density];
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualize = rows.length > VIRTUALIZE_OVER;
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => rowHeight,
+    overscan: 12,
+    enabled: virtualize,
+  });
+
+  // Density changes the row height; re-measure so the virtual body resizes (Context7:
+  // TanStack Virtual — call measure() after estimateSize changes).
+  useEffect(() => {
+    if (virtualize) virtualizer.measure();
+  }, [rowHeight, virtualize, virtualizer]);
+
+  // The row is a real `role="row"`; navigation is a real <Link> that covers the row
+  // (absolute inset), so screen readers announce a named link — not a "row" — while a
+  // click anywhere still navigates (Design System §9.3, and fixes role="row" on <a>).
+  const rowClass = (alarm: boolean) =>
+    cn("relative grid items-center gap-3 px-4 text-sm text-fg", rowHref && "hover:bg-surface-muted", alarm && "ring-2 ring-inset");
+  const rowStyle = (alarm: boolean) =>
+    ({
+      gridTemplateColumns: rowHref ? `${gridTemplate} 16px` : gridTemplate,
+      height: rowHeight,
+      ...(alarm ? { boxShadow: "inset 0 0 0 2px var(--status-alarm-strong)" } : {}),
+    }) as React.CSSProperties;
+
+  const RowInner = ({ row }: { row: T }) => {
+    const alarm = rowStatus?.(row) === "alarm";
+    return (
+      <div role="row" className={rowClass(alarm)} style={rowStyle(alarm)}>
+        {columns.map((c) => (
+          <div
+            key={c.key}
+            role="cell"
+            className={cn("min-w-0 truncate", c.mono && "font-mono text-[13px]", c.align === "right" && "text-right tnum")}
+          >
+            {c.cell(row)}
+          </div>
+        ))}
+        {rowHref && (
+          <div role="cell" className="flex items-center justify-end">
+            <ChevronRight size={16} className="text-fg-subtle" aria-hidden />
+            <Link
+              href={rowHref(row)}
+              aria-label={rowLabel?.(row) ?? "Open row"}
+              className="absolute inset-0 rounded-[var(--radius-md)]"
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Large lists (> 500 rows): one contained scroll area with a sticky header, so the
+  // column labels stay visible while scrolling thousands of devices (Design System §9.3).
+  if (virtualize) {
+    return (
+      <div role="table" aria-busy={isFetching} className="hidden md:block">
+        <div ref={parentRef} className="max-h-[70vh] overflow-auto" style={{ contain: "strict" }}>
+          <div style={{ minWidth }}>
+            <HeaderRow columns={columns} rowHref={rowHref} gridTemplate={gridTemplate} sticky />
+            <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+              {virtualizer.getVirtualItems().map((vi) => {
+                const row = rows[vi.index];
+                return (
+                  <div
+                    key={rowKey(row)}
+                    className="absolute left-0 top-0 w-full border-b border-border"
+                    style={{ transform: `translateY(${vi.start}px)` }}
+                  >
+                    <RowInner row={row} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div role="table" aria-busy={isFetching} className="hidden overflow-x-auto md:block">
+      <div style={{ minWidth }}>
+        <HeaderRow columns={columns} rowHref={rowHref} gridTemplate={gridTemplate} />
+        <div className="divide-y divide-border">
+          {rows.map((row) => (
+            <Fragment key={rowKey(row)}>
+              <RowInner row={row} />
+            </Fragment>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -178,104 +369,5 @@ function MobileCard<T>({
         </div>
       )}
     </li>
-  );
-}
-
-function TableBody<T>({
-  rows,
-  columns,
-  rowKey,
-  rowHref,
-  rowStatus,
-  gridTemplate,
-}: {
-  rows: T[];
-  columns: Column<T>[];
-  rowKey: (row: T) => string | number;
-  rowHref?: (row: T) => string;
-  rowStatus?: (row: T) => DeviceStatus;
-  gridTemplate: string;
-}) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const virtualize = rows.length > VIRTUALIZE_OVER;
-
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 12,
-    enabled: virtualize,
-  });
-
-  const RowInner = ({ row }: { row: T }) => {
-    const alarm = rowStatus?.(row) === "alarm";
-    const content = (
-      <>
-        {columns.map((c) => (
-          <div
-            key={c.key}
-            role="cell"
-            className={cn("min-w-0 truncate", c.mono && "font-mono text-[13px]", c.align === "right" && "text-right tnum")}
-          >
-            {c.cell(row)}
-          </div>
-        ))}
-        {rowHref && <ChevronRight size={16} className="text-fg-subtle" aria-hidden />}
-      </>
-    );
-    const className = cn(
-      "grid items-center gap-3 px-4 text-sm text-fg",
-      rowHref && "hover:bg-surface-muted",
-      alarm && "ring-2 ring-inset",
-    );
-    const style = {
-      gridTemplateColumns: rowHref ? `${gridTemplate} 16px` : gridTemplate,
-      height: ROW_HEIGHT,
-      ...(alarm ? { boxShadow: "inset 0 0 0 2px var(--status-alarm-strong)" } : {}),
-    } as React.CSSProperties;
-
-    if (rowHref) {
-      return (
-        <Link href={rowHref(row)} role="row" className={className} style={style}>
-          {content}
-        </Link>
-      );
-    }
-    return (
-      <div role="row" className={className} style={style}>
-        {content}
-      </div>
-    );
-  };
-
-  if (!virtualize) {
-    return (
-      <div className="divide-y divide-border">
-        {rows.map((row) => (
-          <Fragment key={rowKey(row)}>
-            <RowInner row={row} />
-          </Fragment>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div ref={parentRef} className="max-h-[60vh] overflow-auto" style={{ contain: "strict" }}>
-      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        {virtualizer.getVirtualItems().map((vi) => {
-          const row = rows[vi.index];
-          return (
-            <div
-              key={rowKey(row)}
-              className="absolute left-0 top-0 w-full border-b border-border"
-              style={{ transform: `translateY(${vi.start}px)` }}
-            >
-              <RowInner row={row} />
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }

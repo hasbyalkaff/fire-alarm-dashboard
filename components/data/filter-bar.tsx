@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { Select } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { FilterSheet } from "./filter-sheet";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 
 export interface FilterOption {
@@ -27,6 +28,7 @@ export function FilterBar({
 }) {
   const { get, set, clear, hasAny } = useUrlFilters();
   const [term, setTerm] = useState(get("search"));
+  const activeCount = filters.filter((f) => get(f.key)).length + (get("search") ? 1 : 0);
 
   // Debounce free-text search into the URL.
   useEffect(() => {
@@ -38,7 +40,7 @@ export function FilterBar({
   }, [term]);
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <FilterSheet activeCount={activeCount}>
       {filters.map((f) => (
         <Select
           key={f.key}
@@ -90,6 +92,6 @@ export function FilterBar({
           <X size={15} aria-hidden /> Clear
         </Button>
       )}
-    </div>
+    </FilterSheet>
   );
 }

@@ -29,8 +29,8 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ i
               <DeviceTypeIcon type={device.type} size={22} />
             </span>
             <div>
-              <h1 className="text-2xl font-semibold text-fg">{device.label}</h1>
-              <p className="mt-0.5 text-sm text-fg-muted">
+              <h1 className="text-[1.75rem] font-semibold leading-tight text-fg">{device.label}</h1>
+              <p className="mt-1 text-sm text-fg-muted">
                 {device.zoneName} · {device.building} · {device.panelName} · {device.location}
               </p>
             </div>

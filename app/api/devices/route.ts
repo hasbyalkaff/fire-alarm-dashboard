@@ -13,6 +13,8 @@ export async function GET(request: Request) {
         panelId: num(sp, "panelId"),
         zoneId: num(sp, "zoneId"),
         search: str(sp, "search"),
+        sort: parse.sort(sp),
+        dir: parse.dir(sp),
         page: parse.page(sp),
         pageSize: parse.pageSize(sp),
       }),

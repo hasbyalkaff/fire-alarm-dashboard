@@ -1,17 +1,19 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { FilterBar, type FilterOption } from "@/components/data/filter-bar";
+import { type FilterOption } from "@/components/data/filter-bar";
+import { FilterSheet } from "@/components/data/filter-sheet";
 import { Timeline } from "@/components/data/timeline";
+import { Pagination } from "@/components/data/pagination";
 import { EmptyState, ErrorState } from "@/components/data/states";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { useUrlFilters } from "@/hooks/use-url-filters";
-import { formatNumber } from "@/lib/utils";
 import type { EventDTO, Paginated } from "@/lib/types";
+
+const PAGE_SIZE = 50;
 
 const SEVERITY_OPTS: FilterOption[] = [
   { value: "critical", label: "Critical" },
@@ -38,11 +40,11 @@ export function EventsView({ panelOptions }: { panelOptions: FilterOption[] }) {
 function EventsInner({ panelOptions }: { panelOptions: FilterOption[] }) {
   const search = useSearchParams();
   const { get, set } = useUrlFilters();
-  const [limit, setLimit] = useState(50);
 
+  // Page and filters live in the URL so an investigation is deep-linkable and shareable
+  // (UI Spec §9); changing a filter resets to page 1 via useUrlFilters.
   const qs = new URLSearchParams(search.toString());
-  qs.set("pageSize", String(limit));
-  qs.set("page", "1");
+  qs.set("pageSize", String(PAGE_SIZE));
   const query = qs.toString();
 
   const { data, isPending, isError, refetch } = useQuery({
@@ -55,18 +57,20 @@ function EventsInner({ panelOptions }: { panelOptions: FilterOption[] }) {
     placeholderData: keepPreviousData,
   });
 
+  const activeCount = ["from", "to", "severity", "type", "panelId"].filter((k) => get(k)).length;
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
+      <FilterSheet activeCount={activeCount}>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="from" className="text-xs font-medium text-fg-muted">From</label>
           <input id="from" type="date" value={get("from")} onChange={(e) => set({ from: e.target.value || undefined })}
-            className="h-9 rounded-[var(--radius-md)] border border-border-strong bg-surface px-3 text-sm text-fg" />
+            className="h-10 rounded-[var(--radius-md)] border border-border-strong bg-surface px-3 text-sm text-fg" />
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="to" className="text-xs font-medium text-fg-muted">To</label>
           <input id="to" type="date" value={get("to")} onChange={(e) => set({ to: e.target.value || undefined })}
-            className="h-9 rounded-[var(--radius-md)] border border-border-strong bg-surface px-3 text-sm text-fg" />
+            className="h-10 rounded-[var(--radius-md)] border border-border-strong bg-surface px-3 text-sm text-fg" />
         </div>
         <Select label="Severity" value={get("severity")} onChange={(e) => set({ severity: e.target.value || undefined })} className="min-w-[9rem]">
           <option value="">All</option>
@@ -76,8 +80,11 @@ function EventsInner({ panelOptions }: { panelOptions: FilterOption[] }) {
           <option value="">All</option>
           {TYPE_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
-        <FilterBar search={false} filters={[{ key: "panelId", label: "Panel", options: panelOptions }]} />
-      </div>
+        <Select label="Panel" value={get("panelId")} onChange={(e) => set({ panelId: e.target.value || undefined })} className="min-w-[9rem]">
+          <option value="">All</option>
+          {panelOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </Select>
+      </FilterSheet>
 
       {isPending ? (
         <div className="flex flex-col gap-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
@@ -86,15 +93,12 @@ function EventsInner({ panelOptions }: { panelOptions: FilterOption[] }) {
       ) : !data || data.data.length === 0 ? (
         <EmptyState title="No events match" hint="Adjust the date range or filters." />
       ) : (
-        <>
-          <Timeline events={data.data} />
-          <div className="flex items-center justify-center gap-3 pt-2 text-sm text-fg-subtle">
-            <span className="tnum">Showing {formatNumber(data.data.length)} of {formatNumber(data.meta.total)}</span>
-            {data.data.length < data.meta.total && (
-              <Button variant="secondary" size="sm" onClick={() => setLimit((n) => n + 50)}>Load more</Button>
-            )}
+        <div className="overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface">
+          <div className="p-4">
+            <Timeline events={data.data} />
           </div>
-        </>
+          <Pagination meta={data.meta} />
+        </div>
       )}
     </div>
   );

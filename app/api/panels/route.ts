@@ -10,6 +10,8 @@ export async function GET(request: Request) {
       getPanels({
         status: parse.panelState(sp),
         search: str(sp, "search"),
+        sort: parse.sort(sp),
+        dir: parse.dir(sp),
         page: parse.page(sp),
         pageSize: parse.pageSize(sp),
       }),

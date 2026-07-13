@@ -668,11 +668,13 @@ Mapped against the PRD "≤3 clicks summary → device" metric and key use cases
 
 ### Implementation status (v1.1, 2026-07-13)
 
-Reconciled with the shipped build after the design critique (details in Design System §16). **Shipped:** mobile card lists for every table, 44px touch targets, accessible solid alarm/count badges, fault-amber (not alarm-red) errors, a `[data-theme]`-bound theme toggle, and a polite live region for summary counts. **Still open in the build:**
+Reconciled with the shipped build after the design critique (details in Design System §16). **Shipped:** mobile card lists for every table, 44px touch targets, accessible solid alarm/count badges, fault-amber (not alarm-red) errors, a `[data-theme]`-bound theme toggle, and a polite live region for summary counts.
 
-5. **DataTable column sort** and the **density toggle** (§5.7) are specified but not yet shipped; rows are fixed at the 48px comfortable height.
-6. **Event History pagination** (§5.10, §9) uses "Load more"; deep-linkable, URL-synced page state is a planned improvement.
-7. **Per-surface stale/degraded state** (§5.2) is currently a single global reconnecting banner rather than a per-surface note tied to each Last Update stamp.
+**Now also shipped (previously open, see Design System §16 v1.2):**
+
+5. **DataTable column sort** and the **density toggle** (§5.7) — headers are click-to-sort (URL-synced, server-side ordering); Comfortable/Compact is a persisted UserMenu control (rows 48px / 40px).
+6. **Event History pagination** (§5.10, §9) — deep-linkable, URL-synced page state via the shared `Pagination` component, replacing "Load more".
+7. **Per-surface stale/degraded state** (§5.2) — a `StaleNote` tied to each surface's Last Update stamp on the Dashboard summary and monitoring page headers, alongside the global reconnecting banner.
 
 ---
 

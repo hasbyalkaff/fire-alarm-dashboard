@@ -11,6 +11,8 @@ export async function GET(request: Request) {
         panelId: num(sp, "panelId"),
         status: parse.status(sp),
         search: str(sp, "search"),
+        sort: parse.sort(sp),
+        dir: parse.dir(sp),
         page: parse.page(sp),
         pageSize: parse.pageSize(sp),
       }),

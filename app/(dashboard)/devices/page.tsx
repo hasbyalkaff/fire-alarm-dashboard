@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default function DevicesPage() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Devices" description="All field devices with current status, severity, and location." />
+      <PageHeader title="Devices" description="All field devices with current status, severity, and location." showStale />
       <DevicesView panelOptions={panelOptions()} />
     </div>
   );

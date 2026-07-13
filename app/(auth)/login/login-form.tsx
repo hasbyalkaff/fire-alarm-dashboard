@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Flame, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const usernameRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,6 +33,8 @@ export function LoginForm() {
         const json = await res.json().catch(() => ({}));
         setError(json?.error?.message ?? "Incorrect username or password.");
         setSubmitting(false);
+        // Move focus back to the first field so keyboard/SR users land on the fix (§12).
+        usernameRef.current?.focus();
         return;
       }
       router.replace(from);
@@ -39,6 +42,7 @@ export function LoginForm() {
     } catch {
       setError("Couldn't reach the server. Try again.");
       setSubmitting(false);
+      usernameRef.current?.focus();
     }
   }
 
@@ -60,6 +64,7 @@ export function LoginForm() {
         )}
 
         <Input
+          ref={usernameRef}
           label="Username"
           name="username"
           value={username}

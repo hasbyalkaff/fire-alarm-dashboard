@@ -20,7 +20,7 @@ const g = globalThis as unknown as { __facpUsers?: UserRecord[] };
 function seed(): UserRecord[] {
   const pw = hashPassword("password123");
   return [
-    { id: "u-admin", username: "admin", email: "malyono@pusri.co.id", passwordHash: pw, role: "administrator", isActive: true, lastLoginAt: null },
+    { id: "u-admin", username: "admin", email: "admin@pusri.co.id", passwordHash: pw, role: "administrator", isActive: true, lastLoginAt: null },
     { id: "u-officer", username: "officer", email: "officer@pusri.co.id", passwordHash: pw, role: "safety_officer", isActive: true, lastLoginAt: null },
     { id: "u-viewer", username: "viewer", email: "viewer@pusri.co.id", passwordHash: pw, role: "viewer", isActive: true, lastLoginAt: null },
   ];

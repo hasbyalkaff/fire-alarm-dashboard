@@ -26,6 +26,27 @@ import {
 
 const SEVERITY_RANK: Record<Severity, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 const STATUS_PRIORITY: Record<DeviceStatus, number> = { alarm: 4, fault: 3, offline: 2, normal: 1 };
+const sevRank = (s: Severity | null) => (s ? SEVERITY_RANK[s] : 0);
+
+export type SortDir = "asc" | "desc";
+
+/**
+ * Server-side sort for paginated tables (Design System §9.3). When a valid `sort`
+ * column is given, order by its comparator (flipped for `desc`); otherwise keep the
+ * per-resource default ordering. Column keys match the DataTable `Column.key`.
+ */
+function applySort<T>(
+  rows: T[],
+  sort: string | undefined,
+  dir: SortDir | undefined,
+  cmps: Record<string, (a: T, b: T) => number>,
+  fallback: (a: T, b: T) => number,
+): T[] {
+  const cmp = sort ? cmps[sort] : undefined;
+  if (!cmp) return rows.sort(fallback);
+  const sign = dir === "desc" ? -1 : 1;
+  return rows.sort((a, b) => sign * cmp(a, b));
+}
 
 function paginate<T>(rows: T[], page: number, pageSize: number): Paginated<T> {
   const total = rows.length;
@@ -62,7 +83,7 @@ export function getSummary(): DashboardSummary {
   };
 }
 
-export interface PanelFilters { status?: PanelState; search?: string; page?: number; pageSize?: number }
+export interface PanelFilters { status?: PanelState; search?: string; sort?: string; dir?: SortDir; page?: number; pageSize?: number }
 export function getPanels(f: PanelFilters = {}): Paginated<PanelDTO> {
   const d = db();
   let rows: PanelDTO[] = d.panels.map((p) => ({
@@ -75,9 +96,16 @@ export function getPanels(f: PanelFilters = {}): Paginated<PanelDTO> {
     const q = f.search.toLowerCase();
     rows = rows.filter((r) => r.name.toLowerCase().includes(q) || r.building.toLowerCase().includes(q));
   }
-  // Offline first, then name.
-  rows.sort((a, b) =>
-    a.status === b.status ? a.name.localeCompare(b.name) : a.status === "offline" ? -1 : 1);
+  const offlineFirst = (a: PanelDTO, b: PanelDTO) =>
+    a.status === b.status ? a.name.localeCompare(b.name) : a.status === "offline" ? -1 : 1;
+  applySort<PanelDTO>(rows, f.sort, f.dir, {
+    status: (a, b) => (a.status === "offline" ? 1 : 0) - (b.status === "offline" ? 1 : 0),
+    name: (a, b) => a.name.localeCompare(b.name),
+    building: (a, b) => a.building.localeCompare(b.building),
+    location: (a, b) => a.location.localeCompare(b.location),
+    zones: (a, b) => a.zoneCount - b.zoneCount,
+    comm: (a, b) => a.lastCommunication.localeCompare(b.lastCommunication),
+  }, offlineFirst);
   return paginate(rows, f.page ?? 1, f.pageSize ?? 50);
 }
 
@@ -98,7 +126,7 @@ export function getPanel(id: number): (PanelDTO & { zones: ZoneDTO[]; connection
   };
 }
 
-export interface ZoneFilters { panelId?: number; status?: ZoneStatus; search?: string; page?: number; pageSize?: number }
+export interface ZoneFilters { panelId?: number; status?: ZoneStatus; search?: string; sort?: string; dir?: SortDir; page?: number; pageSize?: number }
 export function getZones(f: ZoneFilters = {}): Paginated<ZoneDTO> {
   const d = db();
   let rows: ZoneDTO[] = d.zones.map((z) => ({
@@ -112,8 +140,15 @@ export function getZones(f: ZoneFilters = {}): Paginated<ZoneDTO> {
     const q = f.search.toLowerCase();
     rows = rows.filter((r) => r.name.toLowerCase().includes(q) || r.building.toLowerCase().includes(q));
   }
-  rows.sort((a, b) =>
-    STATUS_PRIORITY[b.status] - STATUS_PRIORITY[a.status] || a.name.localeCompare(b.name));
+  const worstFirst = (a: ZoneDTO, b: ZoneDTO) =>
+    STATUS_PRIORITY[b.status] - STATUS_PRIORITY[a.status] || a.name.localeCompare(b.name);
+  applySort<ZoneDTO>(rows, f.sort, f.dir, {
+    status: (a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status],
+    name: (a, b) => a.name.localeCompare(b.name),
+    building: (a, b) => a.building.localeCompare(b.building),
+    panel: (a, b) => a.panelName.localeCompare(b.panelName),
+    devices: (a, b) => a.deviceCount - b.deviceCount,
+  }, worstFirst);
   return paginate(rows, f.page ?? 1, f.pageSize ?? 50);
 }
 
@@ -138,7 +173,7 @@ function toDeviceListItem(dev: Device): DeviceListItem {
 
 export interface DeviceFilters {
   status?: DeviceStatus; type?: DeviceType; panelId?: number; zoneId?: number;
-  search?: string; page?: number; pageSize?: number;
+  search?: string; sort?: string; dir?: SortDir; page?: number; pageSize?: number;
 }
 export function getDevices(f: DeviceFilters = {}): Paginated<DeviceListItem> {
   let rows = db().devices.slice();
@@ -150,9 +185,20 @@ export function getDevices(f: DeviceFilters = {}): Paginated<DeviceListItem> {
     const q = f.search.toLowerCase();
     rows = rows.filter((r) => r.label.toLowerCase().includes(q) || r.location.toLowerCase().includes(q));
   }
-  rows.sort((a, b) =>
-    STATUS_PRIORITY[b.status] - STATUS_PRIORITY[a.status] || a.label.localeCompare(b.label));
-  return paginate(rows.map(toDeviceListItem), f.page ?? 1, f.pageSize ?? 50);
+  const items = rows.map(toDeviceListItem);
+  const worstFirst = (a: DeviceListItem, b: DeviceListItem) =>
+    STATUS_PRIORITY[b.status] - STATUS_PRIORITY[a.status] || a.label.localeCompare(b.label);
+  applySort<DeviceListItem>(items, f.sort, f.dir, {
+    status: (a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status],
+    device: (a, b) => a.label.localeCompare(b.label),
+    type: (a, b) => a.typeLabel.localeCompare(b.typeLabel),
+    zone: (a, b) => a.zoneName.localeCompare(b.zoneName),
+    panel: (a, b) => a.panelName.localeCompare(b.panelName),
+    location: (a, b) => a.location.localeCompare(b.location),
+    severity: (a, b) => sevRank(a.severity) - sevRank(b.severity),
+    updated: (a, b) => a.lastUpdate.localeCompare(b.lastUpdate),
+  }, worstFirst);
+  return paginate(items, f.page ?? 1, f.pageSize ?? 50);
 }
 
 export function getDevice(id: number): DeviceDetailDTO | null {
@@ -177,14 +223,23 @@ function eventToAlarmDTO(e: AlarmEvent): AlarmDTO {
   };
 }
 
-export interface AlarmFilters { severity?: Severity; panelId?: number; zoneId?: number; page?: number; pageSize?: number }
+export interface AlarmFilters { severity?: Severity; panelId?: number; zoneId?: number; sort?: string; dir?: SortDir; page?: number; pageSize?: number }
 export function getAlarms(f: AlarmFilters = {}): Paginated<AlarmDTO> {
   let rows = db().events.filter((e) => e.eventType === "alarm" && e.status === "active");
   if (f.severity) rows = rows.filter((e) => e.severity === f.severity);
   if (f.panelId) rows = rows.filter((e) => e.panelId === f.panelId);
   if (f.zoneId) rows = rows.filter((e) => e.zoneId === f.zoneId);
-  const dtos = rows.map(eventToAlarmDTO).sort((a, b) =>
-    SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || b.timestamp.localeCompare(a.timestamp));
+  const dtos = rows.map(eventToAlarmDTO);
+  // Default: most severe, then newest (the operational priority order).
+  const bySeverityTime = (a: AlarmDTO, b: AlarmDTO) =>
+    SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || b.timestamp.localeCompare(a.timestamp);
+  applySort<AlarmDTO>(dtos, f.sort, f.dir, {
+    time: (a, b) => a.timestamp.localeCompare(b.timestamp),
+    severity: (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
+    device: (a, b) => a.device.localeCompare(b.device),
+    zone: (a, b) => a.zone.localeCompare(b.zone),
+    panel: (a, b) => a.panel.localeCompare(b.panel),
+  }, bySeverityTime);
   return paginate(dtos, f.page ?? 1, f.pageSize ?? 50);
 }
 

@@ -41,6 +41,8 @@ export const parse = {
   eventType: (sp: URLSearchParams) => oneOf(sp.get("type"), EVENT_TYPES),
   page: (sp: URLSearchParams) => Math.max(1, num(sp, "page") ?? 1),
   pageSize: (sp: URLSearchParams) => Math.min(200, Math.max(1, num(sp, "pageSize") ?? 50)),
+  sort: (sp: URLSearchParams) => str(sp, "sort"),
+  dir: (sp: URLSearchParams) => oneOf<"asc" | "desc">(sp.get("dir"), ["asc", "desc"]),
 };
 
 function oneOf<T extends string>(v: string | null, allowed: T[]): T | undefined {

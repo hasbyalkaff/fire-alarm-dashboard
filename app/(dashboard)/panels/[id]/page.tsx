@@ -22,7 +22,7 @@ export default async function PanelDetailPage({ params }: { params: Promise<{ id
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-fg">{panel.name}</h1>
+            <h1 className="text-[1.75rem] font-semibold leading-tight text-fg">{panel.name}</h1>
             <p className="mt-1 text-sm text-fg-muted">{panel.location}</p>
           </div>
           <div className="flex flex-col items-end gap-1.5">

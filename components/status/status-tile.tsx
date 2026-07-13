@@ -60,7 +60,7 @@ export function StatusTile({
         {activeStatus && <StatusDot status={active ? activeStatus : "normal"} />}
       </div>
       <div>
-        <div className="tnum text-4xl font-bold leading-none text-fg">{formatNumber(value)}</div>
+        <div className="tnum text-[2.5rem] font-bold leading-none text-fg">{formatNumber(value)}</div>
         <div className="mt-1.5 text-xs text-fg-subtle">
           {active ? activeHint ?? "Needs attention" : restingHint ?? "All normal"}
         </div>

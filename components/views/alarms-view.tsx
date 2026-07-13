@@ -8,11 +8,11 @@ import { formatTime } from "@/lib/utils";
 import type { AlarmDTO } from "@/lib/types";
 
 const columns: Column<AlarmDTO>[] = [
-  { key: "time", header: "Time", mono: true, cell: (a) => <span className="text-fg-muted">{formatTime(a.timestamp)}</span> },
-  { key: "severity", header: "Severity", cell: (a) => <SeverityBadge severity={a.severity} /> },
-  { key: "device", header: "Device", cell: (a) => <span className="truncate font-medium text-fg">{a.device}</span> },
-  { key: "zone", header: "Zone", cell: (a) => <span className="truncate text-fg-muted">{a.zone}</span> },
-  { key: "panel", header: "Panel", cell: (a) => <span className="text-fg-muted">{a.panel}</span> },
+  { key: "time", header: "Time", sortable: true, mono: true, cell: (a) => <span className="text-fg-muted">{formatTime(a.timestamp)}</span> },
+  { key: "severity", header: "Severity", sortable: true, cell: (a) => <SeverityBadge severity={a.severity} /> },
+  { key: "device", header: "Device", sortable: true, cell: (a) => <span className="truncate font-medium text-fg">{a.device}</span> },
+  { key: "zone", header: "Zone", sortable: true, cell: (a) => <span className="truncate text-fg-muted">{a.zone}</span> },
+  { key: "panel", header: "Panel", sortable: true, cell: (a) => <span className="text-fg-muted">{a.panel}</span> },
   { key: "status", header: "Status", cell: () => <StatusBadge status="alarm" size="sm" /> },
 ];
 
@@ -39,6 +39,7 @@ export function AlarmsView({ panelOptions }: { panelOptions: FilterOption[] }) {
           columns={columns}
           rowKey={(a) => a.id}
           rowHref={(a) => `/devices/${a.deviceId}`}
+          rowLabel={(a) => `${a.device}, ${a.severity} alarm, ${a.zone}`}
           rowStatus={() => "alarm"}
           gridTemplate="100px 110px minmax(150px,1.4fr) 1fr 1fr 110px"
           minWidth={820}

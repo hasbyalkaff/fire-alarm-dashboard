@@ -64,12 +64,12 @@ export function UsersView() {
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                  <th className="px-4 py-2.5">Username</th>
-                  <th className="px-4 py-2.5">Email</th>
-                  <th className="px-4 py-2.5">Role</th>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5">Last login</th>
-                  <th className="px-4 py-2.5 text-right">Actions</th>
+                  <th scope="col" className="px-4 py-3">Username</th>
+                  <th scope="col" className="px-4 py-3">Email</th>
+                  <th scope="col" className="px-4 py-3">Role</th>
+                  <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3">Last login</th>
+                  <th scope="col" className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

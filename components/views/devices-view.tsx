@@ -9,10 +9,11 @@ import { relativeTime } from "@/lib/utils";
 import type { DeviceListItem } from "@/lib/types";
 
 const columns: Column<DeviceListItem>[] = [
-  { key: "status", header: "Status", cell: (d) => <StatusBadge status={d.status} size="sm" /> },
+  { key: "status", header: "Status", sortable: true, cell: (d) => <StatusBadge status={d.status} size="sm" /> },
   {
     key: "device",
     header: "Device",
+    sortable: true,
     cell: (d) => (
       <span className="flex items-center gap-2">
         <DeviceTypeIcon type={d.type} />
@@ -20,12 +21,12 @@ const columns: Column<DeviceListItem>[] = [
       </span>
     ),
   },
-  { key: "type", header: "Type", cell: (d) => <span className="text-fg-muted">{d.typeLabel}</span> },
-  { key: "zone", header: "Zone", cell: (d) => <span className="truncate text-fg-muted">{d.zoneName}</span> },
-  { key: "panel", header: "Panel", cell: (d) => <span className="text-fg-muted">{d.panelName}</span> },
-  { key: "location", header: "Location", cell: (d) => <span className="truncate text-fg-muted">{d.location}</span> },
-  { key: "severity", header: "Severity", cell: (d) => (d.severity ? <SeverityBadge severity={d.severity} /> : <span className="text-fg-subtle">–</span>) },
-  { key: "updated", header: "Updated", mono: true, cell: (d) => <span className="text-fg-muted">{relativeTime(d.lastUpdate)}</span> },
+  { key: "type", header: "Type", sortable: true, cell: (d) => <span className="text-fg-muted">{d.typeLabel}</span> },
+  { key: "zone", header: "Zone", sortable: true, cell: (d) => <span className="truncate text-fg-muted">{d.zoneName}</span> },
+  { key: "panel", header: "Panel", sortable: true, cell: (d) => <span className="text-fg-muted">{d.panelName}</span> },
+  { key: "location", header: "Location", sortable: true, cell: (d) => <span className="truncate text-fg-muted">{d.location}</span> },
+  { key: "severity", header: "Severity", sortable: true, cell: (d) => (d.severity ? <SeverityBadge severity={d.severity} /> : <span className="text-fg-subtle">–</span>) },
+  { key: "updated", header: "Updated", sortable: true, mono: true, cell: (d) => <span className="text-fg-muted">{relativeTime(d.lastUpdate)}</span> },
 ];
 
 const STATUS_OPTS: FilterOption[] = [
@@ -60,6 +61,7 @@ export function DevicesView({ panelOptions }: { panelOptions: FilterOption[] }) 
           columns={columns}
           rowKey={(d) => d.id}
           rowHref={(d) => `/devices/${d.id}`}
+          rowLabel={(d) => `${d.label}, ${d.status}${d.severity ? `, ${d.severity}` : ""}`}
           rowStatus={(d) => d.status}
           gridTemplate="130px minmax(160px,1.4fr) 1fr 1fr 0.8fr 1fr 90px 110px"
           minWidth={980}

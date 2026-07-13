@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRealtime } from "@/hooks/realtime-store";
 import { StatusTile } from "@/components/status/status-tile";
+import { StaleNote } from "@/components/feedback/stale-note";
 import { relativeTime } from "@/lib/utils";
 import { useState } from "react";
 import type { DashboardSummary } from "@/lib/types";
@@ -27,17 +28,17 @@ export function SummaryTiles({ initial }: { initial: DashboardSummary }) {
         {plural(summary.activeFaults, "active fault", "active faults")},{" "}
         {plural(summary.panelsOffline, "panel offline", "panels offline")}.
       </p>
-      {/* Active Alarms is the visual anchor; ordered first on small screens. */}
-      <div className="order-first sm:order-none sm:col-start-3 lg:col-start-3">
-        <StatusTile
-          label="Active Alarms"
-          value={summary.activeAlarms}
-          activeStatus="alarm"
-          restingHint="0 / All Normal"
-          activeHint="Active alarm"
-          href="/alarms"
-        />
-      </div>
+      {/* Active Alarms leads: first in DOM and first visually at every breakpoint, so the
+          most important tile is where the eye and the screen reader land first — and the
+          remaining tiles flow after it with no empty leading cells. */}
+      <StatusTile
+        label="Active Alarms"
+        value={summary.activeAlarms}
+        activeStatus="alarm"
+        restingHint="0 / All Normal"
+        activeHint="Active alarm"
+        href="/alarms"
+      />
       <StatusTile label="Panels Online" value={summary.panelsOnline} restingHint="Communicating" href="/panels" />
       <StatusTile
         label="Panels Offline"
@@ -68,9 +69,12 @@ function LastUpdate({ iso }: { iso: string }) {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="col-span-2 flex items-center gap-2 text-sm text-fg-subtle sm:col-span-3 lg:col-span-5">
-      <span className="inline-block size-1.5 rounded-full" style={{ backgroundColor: "var(--status-normal-icon)" }} aria-hidden />
-      Last update <span className="tnum text-fg-muted">{relativeTime(iso)}</span>
+    <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-subtle sm:col-span-3 lg:col-span-5">
+      <span className="flex items-center gap-2">
+        <span className="inline-block size-1.5 rounded-full" style={{ backgroundColor: "var(--status-normal-icon)" }} aria-hidden />
+        Last update <span className="tnum text-fg-muted">{relativeTime(iso)}</span>
+      </span>
+      <StaleNote />
     </div>
   );
 }

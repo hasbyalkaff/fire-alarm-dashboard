@@ -30,6 +30,7 @@ import { ROLE_LABEL, type Role, type SessionUser } from "@/lib/types";
 import { useSSE } from "@/hooks/use-sse";
 import { useRealtime, useAlarmCount } from "@/hooks/realtime-store";
 import { useTheme } from "@/hooks/use-theme";
+import { useDensity, type Density } from "@/hooks/use-density";
 import { AlarmToaster } from "@/components/feedback/alarm-toaster";
 import { AlarmSound } from "@/components/feedback/alarm-sound";
 
@@ -69,8 +70,10 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const hydrateMute = useRealtime((s) => s.hydrateMute);
+  const hydrateDensity = useDensity((s) => s.hydrate);
 
   useEffect(() => hydrateMute(), [hydrateMute]);
+  useEffect(() => hydrateDensity(), [hydrateDensity]);
   useEffect(() => setDrawerOpen(false), [pathname]);
 
   return (
@@ -175,7 +178,7 @@ function Sidebar({ user, className, onClose }: { user: SessionUser; className?: 
 
 function TopBar({ user, onMenu }: { user: SessionUser; onMenu: () => void }) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface/95 px-4 backdrop-blur md:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface px-4 md:px-6">
       <button
         onClick={onMenu}
         aria-label="Open menu"
@@ -265,6 +268,36 @@ function ThemeToggle() {
   );
 }
 
+function DensityToggle() {
+  const density = useDensity((s) => s.density);
+  const setDensity = useDensity((s) => s.setDensity);
+  const options: { value: Density; label: string }[] = [
+    { value: "comfortable", label: "Comfortable" },
+    { value: "compact", label: "Compact" },
+  ];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-fg-subtle">Table density</span>
+      <div role="group" aria-label="Table density" className="inline-flex rounded-[var(--radius-md)] border border-border-strong p-0.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={density === o.value}
+            onClick={() => setDensity(o.value)}
+            className={cn(
+              "rounded-[calc(var(--radius-md)-2px)] px-2.5 py-1 text-xs font-medium",
+              density === o.value ? "bg-brand text-brand-fg" : "text-fg-muted hover:text-fg",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function UserMenu({ user }: { user: SessionUser }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -298,6 +331,9 @@ function UserMenu({ user }: { user: SessionUser }) {
           >
             <div className="px-3 py-2 text-xs text-fg-subtle">
               Signed in as <span className="font-medium text-fg">{user.username}</span>
+            </div>
+            <div className="border-t border-border px-3 py-2">
+              <DensityToggle />
             </div>
             <button
               role="menuitem"

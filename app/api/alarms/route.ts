@@ -11,6 +11,8 @@ export async function GET(request: Request) {
         severity: parse.severity(sp),
         panelId: num(sp, "panelId"),
         zoneId: num(sp, "zoneId"),
+        sort: parse.sort(sp),
+        dir: parse.dir(sp),
         page: parse.page(sp),
         pageSize: parse.pageSize(sp),
       }),

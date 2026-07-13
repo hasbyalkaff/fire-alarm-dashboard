@@ -563,15 +563,15 @@ Following a design critique (`.impeccable/critique/2026-07-13T01-48-56Z__fire-al
 - **Iconography reconciled** (§3.1, §7): shipped `lucide-react` at stroke 1.75; four distinct silhouettes documented (alert-octagon for Fault).
 - **4px grid clarified** (§5): a 2px sub-step is allowed for optical micro-adjustments only.
 
-### Planned (specified but not yet shipped)
+### v1.2 — 2026-07-13 (shipped the planned gap)
 
-Tracked so the spec stays honest about the gap between intent and build:
+The items previously tracked as "specified but not yet shipped" are now built:
 
-- **DataTable column sort** (§9.3) — headers are not yet click-to-sort.
-- **Density toggle** (§6.3) — Comfortable/Compact is specified; the control and persisted preference are not yet built (rows are fixed at 48px).
-- **Per-surface stale/degraded state** (§9.6) — currently one global reconnecting banner, not yet tied to each surface's Last Update stamp.
-- **DataTable sticky header** (§9.3) on the virtualized body.
-- **Deep-linkable Event History pagination** — Events uses "Load more" rather than URL-synced pages (§9 of the UI Spec).
+- **DataTable column sort** (§9.3) — headers are click-to-sort with `aria-sort`; the active column and direction (asc → desc → unsorted) are URL-synced, and sorting is applied **server-side** so ordering is correct across paginated pages.
+- **Density toggle** (§6.3) — Comfortable (48px) / Compact (40px) is a segmented control in the UserMenu, persisted to `localStorage` and shared with every DataTable; the virtualized body re-measures on change.
+- **Per-surface stale/degraded state** (§9.6) — a `StaleNote` tied to each surface's Last Update stamp appears on the Dashboard summary and the monitoring page headers when the live stream drops, in addition to the global reconnecting banner.
+- **DataTable sticky header** (§9.3) — the header sticks to the top of the virtualized scroll container.
+- **Deep-linkable Event History pagination** — Events now uses the shared URL-synced `Pagination` component instead of "Load more" (§9 of the UI Spec).
 
 ---
 
