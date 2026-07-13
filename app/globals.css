@@ -1,26 +1,131 @@
 @import "tailwindcss";
 
+/* The app themes via [data-theme] (set before first paint in app/layout.tsx), not
+   the OS preference. Bind Tailwind's `dark:` variant to that attribute so utilities
+   like `dark:hidden` track the chosen theme rather than prefers-color-scheme. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Design System v1.0 tokens. Neutrals and brand are registered as Tailwind color
+   tokens (generating background, text, and border utilities). Status colors are
+   applied via CSS variables and inline styles so light and dark swap cleanly. */
+
+@theme {
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f9;
+  --color-surface-elevated: #ffffff;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+  --color-fg: #0f172a;
+  --color-fg-muted: #475569;
+  --color-fg-subtle: #64748b;
+
+  --color-brand: #175cd3;
+  --color-brand-strong: #1149a6;
+  --color-brand-subtle: #eaf2fe;
+  --color-brand-fg: #ffffff;
+
+  --font-sans: var(--font-ibm-sans), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-ibm-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Status palette (Design System §3.1) — light defaults */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --status-normal-fg: #15803d;
+  --status-normal-icon: #16a34a;
+  --status-normal-bg: #ecfdf3;
+  --status-alarm-fg: #b42318;
+  --status-alarm-icon: #dc2626;
+  --status-alarm-bg: #fef3f2;
+  --status-alarm-strong: #dc2626;
+  /* Solid alarm fill for white-text badges/counters (guaranteed AA in both themes:
+     white on #dc2626 = 4.83:1). --status-alarm-strong stays the bright attention
+     hue for icons/rings, which shifts to coral in dark for visibility. */
+  --status-alarm-solid: #dc2626;
+  --status-alarm-solid-fg: #ffffff;
+  --status-fault-fg: #b45309;
+  --status-fault-icon: #d97706;
+  --status-fault-bg: #fef6e7;
+  --status-offline-fg: #475467;
+  --status-offline-icon: #64748b;
+  --status-offline-bg: #f1f5f9;
+  --focus: #175cd3;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #0b1220;
+  --color-surface: #111a2b;
+  --color-surface-muted: #0f1826;
+  --color-surface-elevated: #1a2537;
+  --color-border: #243149;
+  --color-border-strong: #33425c;
+  --color-fg: #e9eef6;
+  --color-fg-muted: #a5b2c6;
+  --color-fg-subtle: #7a8aa3;
+
+  --color-brand: #2e77e6;
+  --color-brand-strong: #175cd3;
+  --color-brand-subtle: rgba(46, 119, 230, 0.14);
+
+  --status-normal-fg: #34d399;
+  --status-normal-icon: #34d399;
+  --status-normal-bg: rgba(52, 211, 153, 0.12);
+  --status-alarm-fg: #ff6b60;
+  --status-alarm-icon: #ff6b60;
+  --status-alarm-bg: rgba(255, 107, 96, 0.14);
+  --status-alarm-strong: #ff6b60;
+  /* Darker fill so white badge text keeps AA on dark surfaces (coral fails at 2.8:1). */
+  --status-alarm-solid: #dc2626;
+  --status-alarm-solid-fg: #ffffff;
+  --status-fault-fg: #fbbf24;
+  --status-fault-icon: #fbbf24;
+  --status-fault-bg: rgba(251, 191, 36, 0.14);
+  --status-offline-fg: #94a6c0;
+  --status-offline-icon: #94a6c0;
+  --status-offline-bg: rgba(148, 166, 192, 0.14);
+  --focus: #5b9bf0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* One-shot alarm attention pulse (two pulses, never infinite). */
+@keyframes facp-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35); }
+}
+.animate-alarm {
+  animation: facp-pulse 0.7s var(--ease-standard) 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-alarm { animation: none; }
+  *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

@@ -1,0 +1,50 @@
+1. How many panels/devices at peak (for list pagination/virtualization thresholds)?
+
+Answer:
+The system should be designed to support up to 100 Fire Alarm Control Panels and approximately 20,000 field devices (smoke detectors, heat detectors, manual call points, bells, modules, etc.). Lists should use server-side pagination by default, while virtualization should be applied when rendering tables or lists containing more than 500 rows.
+
+Reasoning:
+- Skalabel untuk gedung atau kawasan industri.
+- 20.000 device masih sangat realistis untuk aplikasi enterprise.
+- Pagination dan virtualization menjaga performa frontend.
+
+2. Report export format(s) required — PDF, CSV, or both?
+
+Answer:
+Version 1 should support both PDF and CSV exports.
+
+Reasoning:
+- PDF for printable reports, audit documentation, and management summaries.
+- CSV for data analysis, Excel processing, and integration with external systems.
+
+3. Data retention window for Event History?
+
+Answer:
+Event History should be retained for 5 years by default.
+Operational dashboards may query recent data (e.g., last 30–90 days) for optimal performance, while older records remain available for historical reports and audits.
+
+Reasoning:
+- Fire alarm termasuk sistem keselamatan sehingga histori sering dibutuhkan untuk audit atau investigasi.
+- Query dashboard tetap cepat karena hanya membaca data terbaru.
+
+4. Are audible/browser notifications desired for new alarms (in-app only for v1)?
+
+Answer:
+Yes. Version 1 should provide in-application notifications only, including:
+- Real-time notification banner/toast
+- Audible alarm notification while the dashboard is open
+- Alarm indicator badge
+- Auto-update through Server-Sent Events (SSE)
+Push notifications, email, SMS, WhatsApp, or mobile notifications are out of scope for Version 1.
+
+5. Confirm the exact role → permission matrix with the safety team.
+
+Answer:
+The exact permission matrix will be finalized with the Safety Team during the detailed design phase.
+For Version 1, the following roles are assumed:
+Role - Permissions
+Administrator - Full system access, configuration, user management, device management, reports
+Safety Officer - View dashboards, acknowledge alarms, view event history, export reports
+Operator - View dashboards, monitor alarms, view event history
+Viewer - Read-only access to dashboards and reports
+Any permission related to fire alarm acknowledgment, reset, silencing, or control actions will require approval from the Safety Team before implementation.

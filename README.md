@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fire Alarm Monitoring Dashboard
 
-## Getting Started
+A real-time, read-only web dashboard for monitoring fire alarm control panels, zones,
+and devices. Built per `docs/PRD_Fire_Alarm_Monitoring_Dashboard.md`,
+`docs/Technical_Architecture.md`, `docs/Design_System_Fire_Alarm_Dashboard.md`, and
+`docs/UI_Specification_Fire_Alarm_Dashboard.md`.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 ·
+TanStack Query / Virtual · Recharts · Zustand · jose · Server-Sent Events.
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev     # http://localhost:3000
+npm run build   # production build (Next standalone)
+npm start       # run the production server
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Demo accounts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+All seeded users share the password `password123`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Username  | Role           | Can reach                              |
+|-----------|----------------|----------------------------------------|
+| `admin`   | Administrator  | Everything, incl. Users administration |
+| `officer` | Safety Officer | All monitoring, reports, history       |
+| `viewer`  | Viewer         | All monitoring and history (no reports/admin) |
 
-## Learn More
+## What is implemented
 
-To learn more about Next.js, take a look at the following resources:
+- **Auth**: jose-signed `HttpOnly` session cookie, `proxy.ts` optimistic redirect,
+  authoritative `verifySession()` + `requireRole()` in the DAL, RBAC (401/403).
+- **Live data (SSE)**: one `EventSource` mounted in the shell; auto-reconnect with a
+  Reconnecting banner and REST resync; live counters, alarm toast, audible alarm
+  (Web Audio) with a persisted mute control, and a live active-alarm badge.
+- **Screens**: Login, Dashboard Summary, Panels + Panel detail, Zones + Zone detail,
+  Devices + Device detail (register mapping, history), Alarms, Event History, Reports
+  (stats + PDF/CSV export), Admin → Users, plus 403 / 404.
+- **Scale**: server-side pagination on every list; row virtualization above 500 rows
+  (TanStack Virtual); URL-synced filters/pagination.
+- **Design system**: reserved status colors (green/red/amber/grey) always paired with a
+  distinct icon shape + text label; blue reserved for interactive; IBM Plex; light/dark
+  themes; WCAG-minded focus, live regions, reduced motion.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Important: mock upstream (out of scope per PRD)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The upstream **Modbus Feeder Service** and shared PostgreSQL are explicitly out of scope.
+To make the dashboard runnable end-to-end without hardware or a database, this build
+includes a **drop-in mock** behind the same contracts:
 
-## Deploy on Vercel
+- `lib/mock/store.ts` — in-memory domain data (panels/zones/devices/events), seeded
+  deterministically. Replace with a read-only Postgres reader (`dashboard_ro`).
+- `lib/realtime/feeder.ts` — a mock feeder that mutates the store and publishes the same
+  SSE events a real feeder would (`alarm.created`, `alarm.restored`,
+  `device.status_changed`, `panel.status_changed`, `summary.updated`). Booted once from
+  `instrumentation.ts`. Replace with a PostgreSQL `LISTEN/NOTIFY` subscriber.
+- The DAL (`lib/dal.ts`) is the seam: swap its data source and nothing else changes.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Other pragmatic substitutions (documented inline), to be swapped before production:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Password hashing** uses Node `scrypt` instead of Argon2id (no native build needed).
+- **PDF export** returns a print-optimized HTML document (browser print-to-PDF) instead
+  of Puppeteer/PDFKit. CSV export is fully implemented and streamed.
+- **Icons** use `lucide-react` (the design system named Phosphor/Tabler; one family, easy
+  to swap).
+
+Set `SESSION_SECRET` in the environment for any non-local use.
