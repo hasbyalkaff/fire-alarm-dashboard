@@ -18,6 +18,8 @@ import {
   WifiOff,
   Volume2,
   VolumeX,
+  VolumeOff,
+  BellRing,
   Bell,
   Sun,
   Moon,
@@ -69,10 +71,10 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
   useSSE();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const hydrateMute = useRealtime((s) => s.hydrateMute);
+  const hydratePrefs = useRealtime((s) => s.hydratePrefs);
   const hydrateDensity = useDensity((s) => s.hydrate);
 
-  useEffect(() => hydrateMute(), [hydrateMute]);
+  useEffect(() => hydratePrefs(), [hydratePrefs]);
   useEffect(() => hydrateDensity(), [hydrateDensity]);
   useEffect(() => setDrawerOpen(false), [pathname]);
 
@@ -187,6 +189,8 @@ function TopBar({ user, onMenu }: { user: SessionUser; onMenu: () => void }) {
         <Menu size={20} />
       </button>
       <div className="flex-1" />
+      <SilenceButton />
+      <SoundBlockedButton />
       <ConnectionPill />
       <MuteToggle />
       <NotificationBell />
@@ -214,6 +218,56 @@ function ConnectionPill() {
       )}
       <span className="sr-only sm:not-sr-only">{open ? "Live" : "Reconnecting…"}</span>
     </span>
+  );
+}
+
+/**
+ * Silences the critical siren without touching the alarm itself. Only rendered while the
+ * siren is actually sounding, so in the resting state the top bar stays calm. This is the
+ * operator's acknowledgement — the toast, badge, and red counters all stay up.
+ */
+function SilenceButton() {
+  const siren = useRealtime((s) => s.siren);
+  const muted = useRealtime((s) => s.muted);
+  const silence = useRealtime((s) => s.silence);
+  if (!siren || muted) return null;
+  return (
+    <button
+      onClick={silence}
+      className="animate-siren inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-semibold"
+      style={{ backgroundColor: "var(--status-alarm-solid)", color: "var(--status-alarm-solid-fg)" }}
+    >
+      <BellRing size={16} aria-hidden />
+      <span className="hidden sm:inline">Silence alarm</span>
+      <span className="sr-only sm:hidden">Silence alarm</span>
+    </button>
+  );
+}
+
+/**
+ * Browsers refuse to start audio before a user gesture, which would leave an untouched
+ * wall display silently deaf. Surface that state instead of hiding it.
+ */
+function SoundBlockedButton() {
+  const audio = useRealtime((s) => s.audio);
+  const muted = useRealtime((s) => s.muted);
+  const ready = useRealtime((s) => s.ready);
+  const armAudio = useRealtime((s) => s.armAudio);
+  if (!ready || muted || audio !== "blocked") return null;
+  return (
+    <button
+      onClick={() => void armAudio()}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-xs font-medium"
+      style={{
+        backgroundColor: "var(--status-fault-bg)",
+        color: "var(--status-fault-fg)",
+        borderColor: "var(--status-fault-fg)",
+      }}
+      title="The browser has not allowed audio yet. Click to enable the alarm sound."
+    >
+      <VolumeOff size={15} aria-hidden />
+      Enable sound
+    </button>
   );
 }
 
@@ -298,6 +352,40 @@ function DensityToggle() {
   );
 }
 
+/** Spoken announcement between siren cycles, the way a voice-evacuation system works. */
+function VoiceToggle() {
+  const voice = useRealtime((s) => s.voice);
+  const toggleVoice = useRealtime((s) => s.toggleVoice);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-fg-subtle">Alarm announcement</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={voice}
+        onClick={toggleVoice}
+        className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-border-strong px-2.5 py-1.5 text-xs font-medium text-fg-muted hover:text-fg"
+      >
+        Speak zone on critical
+        <span
+          aria-hidden
+          className={cn(
+            "relative inline-block h-4 w-7 shrink-0 rounded-full transition-colors",
+            voice ? "bg-brand" : "bg-border-strong",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 size-3 rounded-full bg-white transition-[left]",
+              voice ? "left-3.5" : "left-0.5",
+            )}
+          />
+        </span>
+      </button>
+    </div>
+  );
+}
+
 function UserMenu({ user }: { user: SessionUser }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -334,6 +422,9 @@ function UserMenu({ user }: { user: SessionUser }) {
             </div>
             <div className="border-t border-border px-3 py-2">
               <DensityToggle />
+            </div>
+            <div className="border-t border-border px-3 py-2">
+              <VoiceToggle />
             </div>
             <button
               role="menuitem"

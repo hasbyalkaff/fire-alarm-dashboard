@@ -2,56 +2,77 @@
 
 import { useEffect, useRef } from "react";
 import { useRealtime } from "@/hooks/realtime-store";
+import { alarmAudio, speak } from "@/lib/audio/alarm-audio";
+import type { AlarmDTO } from "@/lib/types";
 
-// Audible alarm (PRD US-K2/AC-K2). Synthesized with the Web Audio API so no binary
-// asset is required. Plays a short two-tone chirp on each new alarm unless muted.
-// A visible mute control lives in the top bar; sound is never the only signal.
+/**
+ * Headless audible-alarm controller (PRD US-K2/AC-K2, UI Spec §8).
+ *
+ * Critical alarms sound a looping evacuation siren that keeps going until an operator
+ * hits Silence or every alarm restores — a single chirp is too easy to miss in a
+ * control room, and critical alarms are rare enough that a siren is not fatiguing.
+ * Lower severities keep a short one-shot tone. Sound is never the only signal: the
+ * toast, the badge, and the live region fire regardless of mute state.
+ */
 export function AlarmSound() {
-  const lastAlarmKey = useRealtime((s) => s.lastAlarmKey);
+  const siren = useRealtime((s) => s.siren);
+  const sirenAlarm = useRealtime((s) => s.sirenAlarm);
   const muted = useRealtime((s) => s.muted);
-  const ctxRef = useRef<AudioContext | null>(null);
+  const voice = useRealtime((s) => s.voice);
+  const lastAlarmKey = useRealtime((s) => s.lastAlarmKey);
+  const lastAlarm = useRealtime((s) => s.lastAlarm);
+  const setAudio = useRealtime((s) => s.setAudio);
   const first = useRef(true);
 
-  // Unlock the AudioContext on first user interaction (autoplay policy).
+  // Autoplay policy: the AudioContext can only start from a user gesture. Arm it on the
+  // first interaction of the session and report the result so the top bar can show an
+  // "Enable sound" prompt if the browser is still holding it back (wall displays that
+  // nobody has clicked would otherwise be silently deaf).
   useEffect(() => {
+    let done = false;
     const unlock = () => {
-      if (!ctxRef.current) {
-        const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (AC) ctxRef.current = new AC();
-      }
-      ctxRef.current?.resume().catch(() => {});
+      void alarmAudio.arm().then((state) => {
+        setAudio(state);
+        if (state === "ready" && !done) {
+          done = true;
+          window.removeEventListener("pointerdown", unlock);
+          window.removeEventListener("keydown", unlock);
+        }
+      });
     };
-    window.addEventListener("pointerdown", unlock, { once: false });
-    window.addEventListener("keydown", unlock, { once: false });
+    unlock(); // some browsers/kiosk configs allow it immediately
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
     return () => {
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
     };
-  }, []);
+  }, [setAudio]);
 
+  // The critical siren: runs for as long as the store says it should.
+  useEffect(() => {
+    if (siren && !muted) {
+      alarmAudio.startSiren(voice && sirenAlarm ? () => speak(announcement(sirenAlarm)) : undefined);
+    } else {
+      alarmAudio.stop();
+    }
+    return () => alarmAudio.stop();
+  }, [siren, muted, voice, sirenAlarm]);
+
+  // Non-critical alarms: one short tone, urgency scaled to severity.
   useEffect(() => {
     if (first.current) {
       first.current = false;
-      return; // don't chirp on initial mount
+      return; // don't sound on initial mount
     }
-    if (muted || lastAlarmKey === 0) return;
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    [880, 660].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "square";
-      osc.frequency.value = freq;
-      const start = now + i * 0.22;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.15, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.2);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + 0.21);
-    });
-  }, [lastAlarmKey, muted]);
+    if (muted || lastAlarmKey === 0 || !lastAlarm) return;
+    if (lastAlarm.severity === "critical") return; // handled by the siren
+    alarmAudio.playOnce(lastAlarm.severity === "high" ? "urgent" : "notice");
+  }, [lastAlarmKey, lastAlarm, muted]);
 
   return null;
+}
+
+function announcement(a: AlarmDTO): string {
+  return `Fire alarm. ${a.zone}. ${a.device}.`;
 }
