@@ -61,8 +61,8 @@ This is the single source of truth. Every status surface in the product derives 
 | State | Meaning | Icon (shape) | Light: text | Light: fill/icon | Light: tint bg | Dark: text/icon | Dark: tint bg | Sound |
 |---|---|---|---|---|---|---|---|---|
 | **Normal / Online** | All good | Check in circle | `#15803D` | `#16A34A` | `#ECFDF3` | `#34D399` | `rgba(52,211,153,.12)` | none |
-| **Alarm** | Fire/emergency, act now | Filled warning triangle | `#B42318` | `#DC2626` | `#FEF3F2` | `#FF6B60` | `rgba(255,107,96,.14)` | audible alarm |
-| **Fault** | Device/panel malfunction | Diamond with exclamation | `#B45309` | `#D97706` | `#FEF6E7` | `#FBBF24` | `rgba(251,191,36,.14)` | optional soft chime |
+| **Alarm** | Fire/emergency, act now | Filled warning triangle | `#B42318` | `#DC2626` | `#FEF3F2` | `#FF6B60` | `rgba(255,107,96,.14)` | looping siren (critical) · triple-beep (high) |
+| **Fault** | Device/panel malfunction | Diamond with exclamation | `#B45309` | `#D97706` | `#FEF6E7` | `#FBBF24` | `rgba(251,191,36,.14)` | soft two-tone chirp |
 | **Offline / Unknown** | No communication | Slashed circle / disconnected plug | `#475467` | `#64748B` | `#F1F5F9` | `#94A6C0` | `rgba(148,166,192,.14)` | none |
 
 Rules:
@@ -277,7 +277,15 @@ Motion budget is deliberately small (dial 2/10). Every animation must justify it
 | Panel goes offline | row highlight-fade over 1s | static highlighted row |
 | Reconnecting | non-blocking banner slides down; indeterminate bar | static banner, no bar animation |
 
-Rules: animate only `transform` and `opacity`; never `transition: all`; all motion above trivial honors `prefers-reduced-motion`; nothing loops infinitely (an infinitely pulsing alarm becomes visual noise and is banned). Standard easing `cubic-bezier(0.2, 0, 0, 1)`, max duration 300ms.
+Rules: animate only `transform` and `opacity`; never `transition: all`; all motion above trivial honors `prefers-reduced-motion`; Standard easing `cubic-bezier(0.2, 0, 0, 1)`, max duration 300ms.
+
+**Infinite loops are banned, with one bounded exception.** No **status surface** — tile, badge, icon, row, or counter — may ever pulse indefinitely; an infinitely pulsing alarm state becomes visual noise, is impossible to look away from, and stops meaning anything. The single exception is the **Silence control** (§9.4), which may pulse for as long as a critical siren is *audibly sounding*, because it is not a status surface at all:
+
+- It is a **transient control**, not a state display — it does not exist in the resting UI.
+- Its motion is **bounded by the siren it stops**, not by the alarm. Press it and both the sound and the motion end together, while every status surface (toast, badge, red counters) stays put.
+- It is the **affordance the noise is asking you to find**. Motion here shortens the path from "something is screaming" to "here is the button", which is the one moment in this product where drawing the eye is the entire job.
+
+It honors `prefers-reduced-motion` like everything else. Any future request for an infinite animation must clear the same three tests, or it is a status surface and the ban applies.
 
 ---
 
@@ -309,14 +317,16 @@ Built on shadcn/ui + Radix primitives, restyled to these tokens (never shipped i
 - **AlarmToast** — non-blocking, top-right, identifies device/zone, severity-styled, `role="alert"` / `aria-live="assertive"`. Auto-dismiss for non-critical; critical persists until acknowledged-in-view.
 - **Toast (standard)** — `aria-live="polite"` for routine confirmations.
 - **ReconnectingBanner** — full-width, non-blocking, appears on SSE drop; shows retry state; clears on resync.
-- **AlarmSound controller** — plays while an alarm is active and the dashboard is open, with an always-visible mute control in the top bar (state persisted, announced to screen readers).
+- **AlarmSound controller** — headless; synthesized with the Web Audio API (no binary asset). **Severity-tiered:** a *critical* alarm loops an evacuation siren (rising wails alternating with the ISO 8201 / NFPA 72 Temporal-3 pattern) until an operator silences it or all alarms restore; *high* is an urgent triple-beep; *medium/low* is a soft two-tone chirp. An optional spoken announcement names the zone between siren cycles. Always paired with a visible mute control in the top bar (state persisted, announced to screen readers). Full sound design in UI Spec §8.1.
+- **SilenceButton** — appears in the top bar only while the critical siren is sounding. Stops the sound; the toast, badge, and red counters all persist, so silencing acknowledges the *noise*, never the *alarm*.
+- **SoundBlockedButton** — "Enable sound" control shown while the browser autoplay policy is still blocking the `AudioContext`. Fails loud, not silent: an unattended wall display must never be quietly deaf.
 - **NotificationBell + Badge** — active-alarm count; badge clears to zero when all alarms restore. The count badge fills with `--status-alarm-solid` + white text for AA in both themes (§3.1).
 - **LiveRegion (counts)** — a visually hidden `aria-live="polite"` region mirrors the summary counts (active alarms, active faults, panels offline) so screen-reader users hear a change (a new fault, a panel dropping offline) even when no toast fires.
 
 ### 9.5 Forms and controls
 - **Button** variants: primary (`brand-600`), secondary (outline), ghost, and *destructive* (neutral surface + warning icon, never alarm red). Labels are specific ("Generate Daily Report", not "Submit"). Text never wraps at desktop.
 - **Input / Select / DateRangePicker / SearchField** — label above field, helper below, error below, focus-visible ring. Correct `type`, `inputmode`, `autocomplete`.
-- **Toggle / Segmented control** (density, theme, mute defaults).
+- **Toggle / Segmented control** (density, theme, mute defaults, alarm announcement).
 - **Login form** — see §10.1.
 
 ### 9.6 Universal states
@@ -398,6 +408,8 @@ Target: **WCAG 2.2 AA** across both themes, plus the Web Interface Guidelines. T
 - New critical alarm toast: `role="alert"` / `aria-live="assertive"`. Routine updates: `aria-live="polite"`.
 - Connection loss/restore and mute-state changes are announced to screen readers. Live summary counts are mirrored to a polite live region (§9.4) so count changes are announced even when no toast fires.
 - Audible alarm always has a visible, reachable mute control; sound is never the only alarm signal (visual + text always accompany it). Persist mute preference.
+- The critical siren always has a visible, reachable **Silence** control at a 44px target while it sounds, and silencing never removes a visual signal. Where the autoplay policy blocks audio, the blocked state is **surfaced as a control**, not swallowed.
+- The spoken announcement adds to the visual signal, never replaces it, and is independently toggleable for shared or open-plan rooms.
 
 **Forms**
 - Every control has a `<label>` (or `aria-label`); label is clickable via `htmlFor`.
@@ -541,7 +553,7 @@ Drop-in starting point for `app/globals.css`. Semantic tokens map to the palette
 **Don't**
 - Use red, amber, or green for anything that is not a status.
 - Use the alarm red for destructive buttons or error text.
-- Rely on color alone, or on an infinitely pulsing alarm animation.
+- Rely on color alone, or on an infinitely pulsing alarm **status** animation (see §8 for the one bounded exception: the Silence control while a siren sounds).
 - Put raw register/hex numbers in primary monitoring views.
 - Reach for warm-cream + serif, gradient heroes, glassmorphism, or AI-purple accents; this is a control room, not a marketing page.
 - Disable zoom, remove focus outlines, or hardcode date/number formats.
@@ -573,7 +585,17 @@ The items previously tracked as "specified but not yet shipped" are now built:
 - **DataTable sticky header** (§9.3) — the header sticks to the top of the virtualized scroll container.
 - **Deep-linkable Event History pagination** — Events now uses the shared URL-synced `Pagination` component instead of "Load more" (§9 of the UI Spec).
 
+### v1.3 — 2026-08-20 (audible alarm, severity-tiered)
+
+The audible alarm was a single 0.44s two-tone chirp, identical for every severity, and was being missed in the control room. Critical alarms are rare here, so a critical alarm can afford to be genuinely loud and persistent.
+
+- **Severity-tiered alarm sound** (§3.1, §9.4; full design in UI Spec §8.1) — *critical* loops an evacuation siren (rising wails alternating with the ISO 8201 / NFPA 72 Temporal-3 pattern) until an operator silences it or all alarms restore; *high* is an urgent triple-beep; *medium/low* keep the original chirp. Still fully synthesized (Web Audio), so no binary asset was added.
+- **SilenceButton** (§9.4, §12) — stops the sound only; every visual signal persists. Silencing acknowledges the noise, never the alarm.
+- **SoundBlockedButton** (§9.4, §12) — surfaces the browser autoplay block as an "Enable sound" control instead of leaving an unattended display silently deaf.
+- **Spoken announcement** (§9.4, §9.5, §12) — optional `speechSynthesis` utterance naming the zone between siren cycles, toggleable in the UserMenu.
+- **§8 motion rule amended** — the infinite-animation ban is now scoped to *status surfaces*, with a documented, bounded carve-out for the Silence control while a siren is audibly sounding. §15 clarified to match.
+
 ---
 
-*End of Design System - v1.1*
+*End of Design System - v1.3*
 ```

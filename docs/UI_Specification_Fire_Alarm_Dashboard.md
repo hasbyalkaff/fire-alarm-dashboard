@@ -135,7 +135,8 @@ Every protected route renders inside one persistent shell (`app/(dashboard)/layo
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │ TopBar (sticky, 56px)                                                │
-│  [☰] Breadcrumb / Page title      ⟳Connected  🔇Mute  🔔3  ▾User     │
+│  [☰] Breadcrumb / Page title   [Silence]* ⟳Connected 🔇Mute 🔔3 ▾User │
+│                                 * only while the critical siren sounds │
 ├───────────┬────────────────────────────────────────────────────────┤
 │ Sidebar   │ ReconnectingBanner (conditional, full width)            │
 │ (248 / 64)│ ┌────────────────────────────────────────────────────┐ │
@@ -152,7 +153,7 @@ Every protected route renders inside one persistent shell (`app/(dashboard)/layo
 ### 4.2 Persistent shell components (mounted once, survive route changes)
 
 - **AppSidebar** → NavGroup → NavItem (icon + label + optional badge), CollapseToggle.
-- **TopBar** → Breadcrumb, ConnectionStatusPill (SSE), MuteToggle, NotificationBell + AlarmBadge, UserMenu (theme, density, sign out).
+- **TopBar** → Breadcrumb, SilenceButton (conditional), SoundBlockedButton (conditional), ConnectionStatusPill (SSE), MuteToggle, NotificationBell + AlarmBadge, UserMenu (theme, density, alarm announcement, sign out).
 - **SSEProvider** (headless) → owns `EventSource`, connection state, and event fan-out to page stores (Zustand + TanStack Query cache).
 - **ReconnectingBanner** (conditional) → appears on SSE drop, clears on resync (PRD AC-I1/I2, UC-8).
 - **AlarmToastPortal**, **AlarmSoundController** (headless), **DialogPortal**, **LiveRegion** (visually hidden `aria-live`).
@@ -160,8 +161,9 @@ Every protected route renders inside one persistent shell (`app/(dashboard)/layo
 ### 4.3 Shell behavior contract
 
 - The **Active Alarms count** is a single source (SSE-driven store) rendered in three places: nav Alarms badge, top-bar bell badge, and the Dashboard Active Alarms tile. All update together.
-- **Mute** state and **theme/density** preferences live in the client store and persist (localStorage + app settings default).
+- **Mute**, **alarm announcement (voice)**, and **theme/density** preferences live in the client store and persist (localStorage + app settings default).
 - On any `alarm.created`, the shell fires: AlarmToast (assertive), AlarmSound (if not muted), badge increment, and a live-region announcement — regardless of which page is open (PRD US-K1).
+- **Siren lifecycle:** a `critical` alarm sets a `siren` flag in the store that keeps the looping siren sounding until the operator presses **Silence** or a `summary.updated` reports `activeAlarms === 0`. Mute suppresses the sound without clearing the flag, so unmuting while the alarm is still active resumes it (PRD AC-K2/AC-K5).
 
 ---
 
@@ -286,15 +288,17 @@ RootLayout
       │  ├─ SidebarTrigger (mobile ☰)
       │  ├─ Breadcrumb
       │  └─ TopBarActions
+      │     ├─ SilenceButton (only while the siren sounds)
+      │     ├─ SoundBlockedButton (only while audio is blocked)
       │     ├─ ConnectionStatusPill
       │     ├─ MuteToggle
       │     ├─ NotificationBell → AlarmBadge
-      │     └─ UserMenu → {ThemeToggle, DensityToggle, SignOut}
+      │     └─ UserMenu → {ThemeToggle, DensityToggle, VoiceToggle, SignOut}
       ├─ ReconnectingBanner (conditional)
       ├─ <main> PageOutlet (routed page)
       └─ Portals
          ├─ AlarmToastPortal → AlarmToast[]
-         ├─ AlarmSoundController (headless <audio>)
+         ├─ AlarmSoundController (headless; Web Audio synthesis, no asset)
          ├─ DialogPortal
          └─ LiveRegion (aria-live polite + assertive)
 ```
@@ -604,10 +608,30 @@ AlarmToast (top-right, over any page)          ReconnectingBanner (full width, b
 | Overlay | Trigger | Behavior | A11y |
 |---|---|---|---|
 | **AlarmToast** | `alarm.created` on any page | Non-blocking, top-right, identifies device/zone/severity, "View →" deep-links to Device Detail; critical persists, others auto-dismiss | `role="alert"` / `aria-live="assertive"` |
-| **AlarmSound** | active alarm present, not muted | Loops gently while any alarm active; MuteToggle in TopBar (visible, persisted) | never sole signal; mute announced |
+| **AlarmSound** | `alarm.created`, not muted | Severity-tiered (§8.1). Critical **loops until silenced** or all alarms restore; high/medium/low are one-shot. MuteToggle in TopBar (visible, persisted) | never sole signal; mute announced |
+| **SilenceButton** | critical siren sounding | Appears in TopBar; stops the sound only — toast, badge, and counters persist. A later critical alarm re-arms the siren | labeled button, 44px target |
+| **SoundBlockedButton** | AudioContext blocked by autoplay policy | Amber "Enable sound" control in TopBar; one click arms audio for the session | labeled button, states the reason in `title` |
 | **ReconnectingBanner** | SSE drop | Slides under TopBar, shows retry; on resync re-fetches snapshot then clears | `aria-live="polite"` |
 | **NotificationBell + Badge** | active alarm count | Count mirrors nav + summary tile; clears to 0 on full restore | labeled count |
 | **Dialogs** (UserForm, Confirm) | admin actions | Focus-trapped, `overscroll-behavior: contain`, Esc closes | labeled, focus returns to trigger |
+
+### 8.1 Alarm sound design
+
+Synthesized with the Web Audio API — no binary asset to ship, cache-bust, or serve, and the tone is identical on every browser and OS.
+
+| Severity | Sound | Duration |
+|---|---|---|
+| **critical** | Looping evacuation siren, alternating **3 rising wails** (660→1480 Hz sweeps) with the **ISO 8201 / NFPA 72 Temporal-3** pattern (0.5s on / 0.5s off ×3), then a silent gap | loops (~6.3s/cycle) until silenced |
+| **high** | Three fast double-beeps (1050 / 1400 Hz) | ~1.3s, one shot |
+| **medium / low** | Soft two-tone chirp (880 / 660 Hz) | ~0.44s, one shot |
+
+Why two alternating figures rather than one repeated tone: the ear habituates to a fixed tone within seconds, which is the reason a single chirp gets tuned out. The silent gap keeps the siren from becoming a wall of noise and leaves room for the spoken announcement and for people to talk over it.
+
+**Audibility is engineered, not assumed.** Fundamentals sit in 660–1500 Hz where laptop and wall-display speakers are efficient; every voice carries a partial near 3 kHz where human hearing peaks; a `DynamicsCompressor` on the master bus raises perceived loudness without clipping (measured peak 0.64, no clip).
+
+**Spoken announcement** (optional, on by default, toggle in UserMenu): between siren cycles a `speechSynthesis` utterance names the location — *"Fire alarm. Warehouse A. Smoke Detector 12."* — the way a voice-evacuation system does. Degrades silently where no TTS voice is installed.
+
+**Autoplay policy.** Browsers only start an `AudioContext` from a user gesture. The shell arms it on the first interaction and, while it stays blocked, shows the **Enable sound** control (PRD AC-K6) — an untouched wall display must never be silently deaf. The scheduler queues ~3s of audio ahead against the audio clock rather than `setTimeout`, so the siren does not stutter when the tab is backgrounded.
 
 ---
 

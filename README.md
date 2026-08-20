@@ -31,8 +31,11 @@ All seeded users share the password `password123`:
 - **Auth**: jose-signed `HttpOnly` session cookie, `proxy.ts` optimistic redirect,
   authoritative `verifySession()` + `requireRole()` in the DAL, RBAC (401/403).
 - **Live data (SSE)**: one `EventSource` mounted in the shell; auto-reconnect with a
-  Reconnecting banner and REST resync; live counters, alarm toast, audible alarm
-  (Web Audio) with a persisted mute control, and a live active-alarm badge.
+  Reconnecting banner and REST resync; live counters, alarm toast, a live active-alarm
+  badge, and a severity-tiered audible alarm (Web Audio, no asset): critical loops an
+  evacuation siren until an operator hits Silence, high/medium/low are one-shot tones.
+  Persisted mute, optional spoken zone announcement, and an "Enable sound" prompt when
+  the browser autoplay policy is blocking audio.
 - **Screens**: Login, Dashboard Summary, Panels + Panel detail, Zones + Zone detail,
   Devices + Device detail (register mapping, history), Alarms, Event History, Reports
   (stats + PDF/CSV export), Admin → Users, plus 403 / 404.

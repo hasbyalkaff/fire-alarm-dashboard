@@ -313,7 +313,7 @@ flowchart LR
 
 ### Epic K — In-App Notifications
 - **US-K1:** As a guard, I want a toast/banner to pop up the instant a new alarm arrives so I notice even if I'm looking at another view.
-- **US-K2:** As a guard, I want an audible alarm sound (while the dashboard is open) so I'm alerted without staring at the screen.
+- **US-K2:** As a guard, I want an audible alarm sound (while the dashboard is open) so I'm alerted without staring at the screen — and for a *critical* alarm I want it to keep sounding until someone acknowledges it, because a single short tone is easy to miss in a control room.
 - **US-K3:** As a guard, I want an alarm indicator badge showing the active-alarm count so I always know if something needs attention.
 
 ### Epic L — Scale & Performance
@@ -371,7 +371,9 @@ Written in Given/When/Then. IDs map to user stories above.
 
 ### In-App Notifications
 - **AC-K1:** *Given* the dashboard is open, *when* a new alarm arrives via SSE, *then* a non-blocking toast/banner appears identifying the device/zone.
-- **AC-K2:** *Given* a new alarm arrives, *then* an audible alarm sound plays while the dashboard is open (with a visible mute control).
+- **AC-K2:** *Given* a new alarm arrives, *then* an audible alarm sound plays while the dashboard is open (with a visible mute control). The sound is **tiered by severity**: a *critical* alarm sounds a **looping evacuation siren that keeps sounding until an operator silences it** or every alarm restores; *high* sounds a short urgent triple-beep; *medium/low* sound a soft two-tone chirp.
+- **AC-K5:** *Given* the critical siren is sounding, *then* a visible **Silence** control is available in the top bar; silencing stops the sound only — the toast, badge, and red counters stay up, and a subsequent critical alarm re-arms the siren.
+- **AC-K6:** *Given* the browser has not yet permitted audio (no user interaction on this tab), *then* the dashboard shows a visible **"Enable sound"** control rather than failing silently, so an unattended wall display is never silently deaf.
 - **AC-K3:** *Given* one or more active alarms, *then* the alarm indicator badge shows the current active-alarm count and clears to zero when all alarms are restored.
 - **AC-K4:** *Given* notifications, *then* they are **in-app only** — no SMS/email/push/WhatsApp is sent from v1.
 
